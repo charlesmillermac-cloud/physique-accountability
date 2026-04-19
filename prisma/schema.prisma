@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AthleteStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum CheckInStatus {
+  PENDING
+  SUBMITTED
+  INCOMPLETE
+  MISSED
+}
+
+enum ReminderTargetType {
+  DAILY_CHECK_IN
+  WEEKLY_CHECK_IN
+}
+
+enum ReminderChannel {
+  IN_APP
+  EMAIL
+  SMS
+}
+
+enum ReminderLevel {
+  INITIAL
+  FOLLOW_UP
+  ESCALATED
+  FINAL
+}
+
+enum ReminderStatus {
+  QUEUED
+  SENT
+  ACKNOWLEDGED
+  CANCELLED
+}
+
+model Athlete {
+  id                    String          @id @default(cuid())
+  email                 String          @unique
+  firstName             String
+  lastName              String
+  timezone              String          @default("America/Denver")
+  status                AthleteStatus   @default(ACTIVE)
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  dailyCheckIns         DailyCheckIn[]
+  weeklyCheckIns        WeeklyCheckIn[]
+  weeklySummaries       WeeklySummary[]
+  reminders             Reminder[]
+
+  @@index([status])
+}
+
+model DailyCheckIn {
+  id                String      @id @default(cuid())
+  athleteId         String
+  athlete           Athlete     @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  checkInDate       DateTime
+  status            CheckInStatus @default(PENDING)
+  submittedAt       DateTime?
+  trainingCompleted Boolean?
+  nutritionCompliant Boolean?
+  steps             Int?
+  sleepHours        Decimal?    @db.Decimal(4, 1)
+  morningWeight     Decimal?    @db.Decimal(5, 1)
+  energyLevel       Int?
+  notes             String?
+  missingFields     String[]    @default([])
+  reminders         Reminder[]  @relation("DailyCheckInReminders")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([athleteId, checkInDate])
+  @@index([athleteId, checkInDate])
+  @@index([status])
+}
+
+model WeeklyCheckIn {
+  id                     String       @id @default(cuid())
+  athleteId              String
+  athlete                Athlete      @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  weekStartDate          DateTime
+  weekEndDate            DateTime
+  status                 CheckInStatus @default(PENDING)
+  submittedAt            DateTime?
+  adherenceScore         Int?
+  recoveryScore          Int?
+  progressPhotosSubmitted Boolean?
+  wins                   String?
+  challenges             String?
+  focusForNextWeek       String?
+  missingFields          String[]     @default([])
+  reminders              Reminder[]   @relation("WeeklyCheckInReminders")
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@unique([athleteId, weekStartDate])
+  @@index([athleteId, weekStartDate])
+  @@index([status])
+}
+
+model WeeklySummary {
+  id                String    @id @default(cuid())
+  athleteId         String
+  athlete           Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  weekStartDate     DateTime
+  weekEndDate       DateTime
+  complianceScore   Int
+  reportingScore    Int
+  missingDataCount  Int       @default(0)
+  summaryMarkdown   String
+  generatedAt       DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([athleteId, weekStartDate])
+  @@index([athleteId, weekStartDate])
+}
+
+model Reminder {
+  id               String            @id @default(cuid())
+  athleteId        String
+  athlete          Athlete           @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  targetType       ReminderTargetType
+  targetDate       DateTime
+  channel          ReminderChannel   @default(IN_APP)
+  level            ReminderLevel     @default(INITIAL)
+  status           ReminderStatus    @default(QUEUED)
+  scheduledFor     DateTime
+  sentAt           DateTime?
+  acknowledgedAt   DateTime?
+  dailyCheckInId   String?
+  dailyCheckIn     DailyCheckIn?     @relation("DailyCheckInReminders", fields: [dailyCheckInId], references: [id], onDelete: SetNull)
+  weeklyCheckInId  String?
+  weeklyCheckIn    WeeklyCheckIn?    @relation("WeeklyCheckInReminders", fields: [weeklyCheckInId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([athleteId, targetDate])
+  @@index([status, scheduledFor])
+}
