@@ -251,12 +251,13 @@ model DailyCheckIn {
   sleepHours       Decimal?                @db.Decimal(4, 2)
   trainingCompleted Boolean?
   cardioCompleted  Boolean?
-  mealsOnPlan      Int?
+  mealsOnPlan      Int?                    @db.SmallInt
   energy           Int?                    @db.SmallInt
   stress           Int?                    @db.SmallInt
   digestion        Int?                    @db.SmallInt
   libido           Int?                    @db.SmallInt
   notes            String?
+  missingFields    String[]                @default([])
   completionStatus CheckInCompletionStatus @default(PENDING)
   submittedAt      DateTime?
   scheduledPrompts ScheduledPrompt[]       @relation("DailyCheckInPrompts")

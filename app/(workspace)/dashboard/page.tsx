@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ActiveGoalSummary } from "@/components/dashboard/active-goal-summary";
+import { LatestDailyCheckInCard } from "@/components/dashboard/latest-daily-check-in-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +18,26 @@ import {
   missingDataItems,
   summaryHighlights,
 } from "@/lib/placeholders";
+import {
+  canScoreDailyCheckIn,
+  getDailyCheckInDisplayStatus,
+  type ScorableDailyCheckInField,
+} from "@/lib/daily-check-in";
 import { getCurrentUserSnapshot } from "@/lib/current-user";
+import { prisma } from "@/lib/db/prisma";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const currentUser = await getCurrentUserSnapshot();
+  const latestDailyCheckIn = currentUser
+    ? await prisma.dailyCheckIn.findFirst({
+        where: {
+          userId: currentUser.id,
+        },
+        orderBy: [{ date: "desc" }, { updatedAt: "desc" }],
+      })
+    : null;
   const athleteName = currentUser
     ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
     : "Athlete";
@@ -67,6 +82,30 @@ export default async function DashboardPage() {
                 stepTarget: currentUser.activeGoal.stepTarget,
                 cardioTargetMinutes:
                   currentUser.activeGoal.cardioTargetMinutes,
+              }
+            : null
+        }
+      />
+
+      <LatestDailyCheckInCard
+        latestCheckIn={
+          latestDailyCheckIn
+            ? {
+                date: latestDailyCheckIn.date,
+                morningWeight: latestDailyCheckIn.morningWeight?.toString() ?? null,
+                sleepHours: latestDailyCheckIn.sleepHours?.toString() ?? null,
+                trainingCompleted: latestDailyCheckIn.trainingCompleted,
+                cardioCompleted: latestDailyCheckIn.cardioCompleted,
+                mealsOnPlan: latestDailyCheckIn.mealsOnPlan,
+                energy: latestDailyCheckIn.energy,
+                stress: latestDailyCheckIn.stress,
+                digestion: latestDailyCheckIn.digestion,
+                libido: latestDailyCheckIn.libido,
+                notes: latestDailyCheckIn.notes,
+                status: getDailyCheckInDisplayStatus(latestDailyCheckIn),
+                canScore: canScoreDailyCheckIn(latestDailyCheckIn),
+                missingFields:
+                  latestDailyCheckIn.missingFields as ScorableDailyCheckInField[],
               }
             : null
         }
