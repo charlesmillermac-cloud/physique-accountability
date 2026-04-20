@@ -1,0 +1,2 @@
+ALTER TABLE "WeeklyCheckIn"
+ADD COLUMN "missingFields" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

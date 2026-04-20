@@ -2,8 +2,9 @@ import Link from "next/link";
 
 import { ActiveGoalSummary } from "@/components/dashboard/active-goal-summary";
 import { LatestDailyCheckInCard } from "@/components/dashboard/latest-daily-check-in-card";
-import { PageHeader } from "@/components/layout/page-header";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { WeeklyReviewGateCard } from "@/components/dashboard/weekly-review-gate-card";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,11 +26,17 @@ import {
 } from "@/lib/daily-check-in";
 import { getCurrentUserSnapshot } from "@/lib/current-user";
 import { prisma } from "@/lib/db/prisma";
+import {
+  getCurrentWeeklyReviewWeekStart,
+  getWeeklyReviewGateAssessment,
+} from "@/lib/weekly-check-in";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const currentUser = await getCurrentUserSnapshot();
+  const now = new Date();
+  const timeZone = currentUser?.timezone ?? "America/Denver";
   const latestDailyCheckIn = currentUser
     ? await prisma.dailyCheckIn.findFirst({
         where: {
@@ -38,6 +45,26 @@ export default async function DashboardPage() {
         orderBy: [{ date: "desc" }, { updatedAt: "desc" }],
       })
     : null;
+  const currentWeeklyReviewWeekStart = getCurrentWeeklyReviewWeekStart(
+    now,
+    timeZone,
+  );
+  const currentWeeklyReview = currentUser
+    ? await prisma.weeklyCheckIn.findUnique({
+        where: {
+          userId_weekStartDate: {
+            userId: currentUser.id,
+            weekStartDate: new Date(
+              `${currentWeeklyReviewWeekStart}T00:00:00.000Z`,
+            ),
+          },
+        },
+      })
+    : null;
+  const weeklyReviewGate = getWeeklyReviewGateAssessment(currentWeeklyReview, {
+    now,
+    timeZone,
+  });
   const athleteName = currentUser
     ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
     : "Athlete";
@@ -110,6 +137,8 @@ export default async function DashboardPage() {
             : null
         }
       />
+
+      <WeeklyReviewGateCard gate={weeklyReviewGate} />
 
       <section className="grid gap-4 xl:grid-cols-3">
         {dashboardMetrics.map((metric) => (
