@@ -7,147 +7,411 @@ datasource db {
   provider = "postgresql"
 }
 
-enum AthleteStatus {
+enum UserStatus {
   ACTIVE
   PAUSED
   ARCHIVED
 }
 
-enum CheckInStatus {
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum CheckInCompletionStatus {
   PENDING
-  SUBMITTED
-  INCOMPLETE
+  PARTIAL
+  COMPLETED
   MISSED
 }
 
-enum ReminderTargetType {
+enum ScheduledPromptType {
   DAILY_CHECK_IN
   WEEKLY_CHECK_IN
+  GENERAL_ACCOUNTABILITY
 }
 
-enum ReminderChannel {
+enum ScheduledPromptStatus {
+  SCHEDULED
+  SENT
+  PARTIAL
+  COMPLETED
+  OVERDUE
+  ESCALATED
+  CLOSED
+}
+
+enum PromptAttemptType {
+  INITIAL_SEND
+  REMINDER
+  ESCALATION
+  MANUAL_FOLLOW_UP
+}
+
+enum PromptAttemptStatus {
+  QUEUED
+  SENT
+  FAILED
+  ACKNOWLEDGED
+  NO_RESPONSE
+}
+
+enum MessageChannel {
   IN_APP
   EMAIL
   SMS
+  SYSTEM
 }
 
-enum ReminderLevel {
-  INITIAL
-  FOLLOW_UP
-  ESCALATED
-  FINAL
+enum AccountabilityFlagType {
+  REPEATED_MISSED_WEIGH_INS
+  MISSED_EVENING_CLOSEOUTS
+  LOW_REPORTING_CONSISTENCY
+  WEEKEND_ADHERENCE_ISSUES
+  INCOMPLETE_CHECK_IN_PATTERN
+  OTHER
 }
 
-enum ReminderStatus {
-  QUEUED
-  SENT
+enum FlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AccountabilityFlagStatus {
+  OPEN
   ACKNOWLEDGED
-  CANCELLED
+  RESOLVED
+  DISMISSED
 }
 
-model Athlete {
-  id                    String          @id @default(cuid())
-  email                 String          @unique
-  firstName             String
-  lastName              String
-  timezone              String          @default("America/Denver")
-  status                AthleteStatus   @default(ACTIVE)
-  onboardingCompletedAt DateTime?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  dailyCheckIns         DailyCheckIn[]
-  weeklyCheckIns        WeeklyCheckIn[]
-  weeklySummaries       WeeklySummary[]
-  reminders             Reminder[]
+enum InterventionCategory {
+  REMINDER_ADJUSTMENT
+  REPORTING_RESET
+  COMPLIANCE_CORRECTION
+  COACH_REVIEW
+  PLAN_ADJUSTMENT
+  OTHER
+}
 
+enum InterventionSource {
+  SYSTEM
+  AI
+  COACH
+}
+
+enum InterventionStatus {
+  RECOMMENDED
+  ACCEPTED
+  ACTIVE
+  RESOLVED
+  DISMISSED
+}
+
+enum MessageHistoryType {
+  ACCOUNTABILITY_PROMPT
+  PROMPT_REMINDER
+  PROMPT_ESCALATION
+  AI_REVIEW_SUMMARY
+  INTERVENTION_RECOMMENDATION
+}
+
+enum MessageHistoryStatus {
+  GENERATED
+  SENT
+  FAILED
+  LOGGED
+}
+
+enum MessageAuthor {
+  SYSTEM
+  AI
+  COACH
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  firstName      String
+  lastName       String
+  timezone       String    @default("America/Denver")
+  status         UserStatus @default(ACTIVE)
+  activeGoalId   String?   @unique
+  activeGoal     Goal?     @relation("ActiveGoal", fields: [activeGoalId, id], references: [id, userId])
+  goals          Goal[]    @relation("UserGoals")
+  dailyCheckIns  DailyCheckIn[]
+  weeklyCheckIns WeeklyCheckIn[]
+  complianceScores ComplianceScore[]
+  reportingScores ReportingScore[]
+  scheduledPrompts ScheduledPrompt[]
+  accountabilityFlags AccountabilityFlag[]
+  interventions  Intervention[]
+  messageHistory MessageHistory[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([activeGoalId, id])
   @@index([status])
+}
+
+model Goal {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation("UserGoals", fields: [userId], references: [id], onDelete: Cascade)
+  activeForUser       User?     @relation("ActiveGoal")
+  title               String
+  description         String?
+  status              GoalStatus @default(ACTIVE)
+  startDate           DateTime  @db.Date
+  targetEndDate       DateTime? @db.Date
+  completedAt         DateTime?
+  archivedAt          DateTime?
+  dailyCheckIns       DailyCheckIn[]
+  weeklyCheckIns      WeeklyCheckIn[]
+  complianceScores    ComplianceScore[]
+  reportingScores     ReportingScore[]
+  scheduledPrompts    ScheduledPrompt[]
+  accountabilityFlags AccountabilityFlag[]
+  interventions       Intervention[]
+  messageHistory      MessageHistory[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([id, userId])
+  @@index([userId, status])
+  @@index([userId, startDate])
 }
 
 model DailyCheckIn {
-  id                String      @id @default(cuid())
-  athleteId         String
-  athlete           Athlete     @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  checkInDate       DateTime
-  status            CheckInStatus @default(PENDING)
-  submittedAt       DateTime?
+  id               String                  @id @default(cuid())
+  userId           String
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId           String?
+  goal             Goal?                   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  date             DateTime                @db.Date
+  morningWeight    Decimal?                @db.Decimal(5, 2)
+  sleepHours       Decimal?                @db.Decimal(4, 2)
   trainingCompleted Boolean?
-  nutritionCompliant Boolean?
-  steps             Int?
-  sleepHours        Decimal?    @db.Decimal(4, 1)
-  morningWeight     Decimal?    @db.Decimal(5, 1)
-  energyLevel       Int?
-  notes             String?
-  missingFields     String[]    @default([])
-  reminders         Reminder[]  @relation("DailyCheckInReminders")
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  cardioCompleted  Boolean?
+  mealsOnPlan      Int?
+  energy           Int?                    @db.SmallInt
+  stress           Int?                    @db.SmallInt
+  digestion        Int?                    @db.SmallInt
+  libido           Int?                    @db.SmallInt
+  notes            String?
+  completionStatus CheckInCompletionStatus @default(PENDING)
+  submittedAt      DateTime?
+  scheduledPrompts ScheduledPrompt[]       @relation("DailyCheckInPrompts")
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
-  @@unique([athleteId, checkInDate])
-  @@index([athleteId, checkInDate])
-  @@index([status])
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@index([goalId, date])
+  @@index([completionStatus, date])
 }
 
 model WeeklyCheckIn {
-  id                     String       @id @default(cuid())
-  athleteId              String
-  athlete                Athlete      @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  weekStartDate          DateTime
-  weekEndDate            DateTime
-  status                 CheckInStatus @default(PENDING)
-  submittedAt            DateTime?
-  adherenceScore         Int?
-  recoveryScore          Int?
-  progressPhotosSubmitted Boolean?
-  wins                   String?
-  challenges             String?
-  focusForNextWeek       String?
-  missingFields          String[]     @default([])
-  reminders              Reminder[]   @relation("WeeklyCheckInReminders")
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
+  id                            String                  @id @default(cuid())
+  userId                        String
+  user                          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId                        String?
+  goal                          Goal?                   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  weekStartDate                 DateTime                @db.Date
+  averageBodyweight             Decimal?                @db.Decimal(5, 2)
+  waistMeasurement              Decimal?                @db.Decimal(5, 2)
+  frontPhotoUrl                 String?
+  sidePhotoUrl                  String?
+  backPhotoUrl                  String?
+  trainingCompliancePercentage  Decimal?                @db.Decimal(5, 2)
+  nutritionCompliancePercentage Decimal?                @db.Decimal(5, 2)
+  subjectiveLook                String?
+  recoveryState                 String?
+  notes                         String?
+  completionStatus              CheckInCompletionStatus @default(PENDING)
+  submittedAt                   DateTime?
+  scheduledPrompts              ScheduledPrompt[]       @relation("WeeklyCheckInPrompts")
+  messageHistory                MessageHistory[]
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
 
-  @@unique([athleteId, weekStartDate])
-  @@index([athleteId, weekStartDate])
-  @@index([status])
+  @@unique([userId, weekStartDate])
+  @@index([userId, weekStartDate])
+  @@index([goalId, weekStartDate])
+  @@index([completionStatus, weekStartDate])
 }
 
-model WeeklySummary {
-  id                String    @id @default(cuid())
-  athleteId         String
-  athlete           Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  weekStartDate     DateTime
-  weekEndDate       DateTime
-  complianceScore   Int
-  reportingScore    Int
-  missingDataCount  Int       @default(0)
-  summaryMarkdown   String
-  generatedAt       DateTime  @default(now())
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+model ComplianceScore {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId          String?
+  goal            Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  windowStartDate DateTime  @db.Date
+  windowEndDate   DateTime  @db.Date
+  score           Decimal   @db.Decimal(5, 2)
+  notes           String?
+  calculatedAt    DateTime  @default(now())
 
-  @@unique([athleteId, weekStartDate])
-  @@index([athleteId, weekStartDate])
+  @@index([userId, windowStartDate])
+  @@index([goalId, windowStartDate])
+  @@index([calculatedAt])
 }
 
-model Reminder {
-  id               String            @id @default(cuid())
-  athleteId        String
-  athlete          Athlete           @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  targetType       ReminderTargetType
-  targetDate       DateTime
-  channel          ReminderChannel   @default(IN_APP)
-  level            ReminderLevel     @default(INITIAL)
-  status           ReminderStatus    @default(QUEUED)
-  scheduledFor     DateTime
-  sentAt           DateTime?
-  acknowledgedAt   DateTime?
-  dailyCheckInId   String?
-  dailyCheckIn     DailyCheckIn?     @relation("DailyCheckInReminders", fields: [dailyCheckInId], references: [id], onDelete: SetNull)
-  weeklyCheckInId  String?
-  weeklyCheckIn    WeeklyCheckIn?    @relation("WeeklyCheckInReminders", fields: [weeklyCheckInId], references: [id], onDelete: SetNull)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+model ReportingScore {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId          String?
+  goal            Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  windowStartDate DateTime  @db.Date
+  windowEndDate   DateTime  @db.Date
+  score           Decimal   @db.Decimal(5, 2)
+  notes           String?
+  calculatedAt    DateTime  @default(now())
 
-  @@index([athleteId, targetDate])
-  @@index([status, scheduledFor])
+  @@index([userId, windowStartDate])
+  @@index([goalId, windowStartDate])
+  @@index([calculatedAt])
+}
+
+model ScheduledPrompt {
+  id                     String                @id @default(cuid())
+  userId                 String
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId                 String?
+  goal                   Goal?                 @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  dailyCheckInId         String?
+  dailyCheckIn           DailyCheckIn?         @relation("DailyCheckInPrompts", fields: [dailyCheckInId], references: [id], onDelete: SetNull)
+  weeklyCheckInId        String?
+  weeklyCheckIn          WeeklyCheckIn?        @relation("WeeklyCheckInPrompts", fields: [weeklyCheckInId], references: [id], onDelete: SetNull)
+  promptType             ScheduledPromptType
+  status                 ScheduledPromptStatus @default(SCHEDULED)
+  channel                MessageChannel        @default(IN_APP)
+  scheduledFor           DateTime
+  dueAt                  DateTime?
+  sentAt                 DateTime?
+  lastAttemptAt          DateTime?
+  completedAt            DateTime?
+  escalatedAt            DateTime?
+  closedAt               DateTime?
+  currentEscalationLevel Int                   @default(0)
+  context                Json?
+  promptAttempts         PromptAttempt[]
+  messageHistory         MessageHistory[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  @@index([userId, status, scheduledFor])
+  @@index([userId, dueAt])
+  @@index([goalId, status])
+  @@index([dailyCheckInId])
+  @@index([weeklyCheckInId])
+}
+
+model PromptAttempt {
+  id               String              @id @default(cuid())
+  scheduledPromptId String
+  scheduledPrompt  ScheduledPrompt     @relation(fields: [scheduledPromptId], references: [id], onDelete: Cascade)
+  attemptNumber    Int
+  attemptType      PromptAttemptType
+  status           PromptAttemptStatus @default(QUEUED)
+  channel          MessageChannel      @default(IN_APP)
+  escalationLevel  Int                 @default(0)
+  attemptedAt      DateTime?
+  respondedAt      DateTime?
+  notes            String?
+  messageHistory   MessageHistory[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([scheduledPromptId, attemptNumber])
+  @@index([scheduledPromptId, attemptType])
+  @@index([status, attemptedAt])
+}
+
+model AccountabilityFlag {
+  id              String                    @id @default(cuid())
+  userId          String
+  user            User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId          String?
+  goal            Goal?                     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  flagType        AccountabilityFlagType
+  severity        FlagSeverity              @default(MEDIUM)
+  status          AccountabilityFlagStatus  @default(OPEN)
+  title           String
+  description     String?
+  firstObservedAt DateTime                  @default(now())
+  lastObservedAt  DateTime                  @default(now())
+  detectedAt      DateTime                  @default(now())
+  occurrenceCount Int                       @default(1)
+  evidence        Json?
+  resolvedAt      DateTime?
+  interventions   Intervention[]
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([userId, status, detectedAt])
+  @@index([userId, flagType, status])
+  @@index([goalId, status])
+}
+
+model Intervention {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId            String?
+  goal              Goal?                @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  accountabilityFlagId String?
+  accountabilityFlag AccountabilityFlag? @relation(fields: [accountabilityFlagId], references: [id], onDelete: SetNull)
+  category          InterventionCategory
+  source            InterventionSource
+  status            InterventionStatus   @default(RECOMMENDED)
+  title             String
+  recommendedAction String
+  rationale         String?
+  recommendedAt     DateTime             @default(now())
+  acknowledgedAt    DateTime?
+  resolvedAt        DateTime?
+  messageHistory    MessageHistory[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([userId, status, recommendedAt])
+  @@index([goalId, status])
+  @@index([accountabilityFlagId])
+}
+
+model MessageHistory {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId            String?
+  goal              Goal?                @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  scheduledPromptId String?
+  scheduledPrompt   ScheduledPrompt?     @relation(fields: [scheduledPromptId], references: [id], onDelete: SetNull)
+  promptAttemptId   String?
+  promptAttempt     PromptAttempt?       @relation(fields: [promptAttemptId], references: [id], onDelete: SetNull)
+  weeklyCheckInId   String?
+  weeklyCheckIn     WeeklyCheckIn?       @relation(fields: [weeklyCheckInId], references: [id], onDelete: SetNull)
+  interventionId    String?
+  intervention      Intervention?        @relation(fields: [interventionId], references: [id], onDelete: SetNull)
+  messageType       MessageHistoryType
+  status            MessageHistoryStatus @default(LOGGED)
+  channel           MessageChannel       @default(SYSTEM)
+  author            MessageAuthor
+  subject           String?
+  content           String
+  metadata          Json?
+  sentAt            DateTime?
+  createdAt         DateTime             @default(now())
+
+  @@index([userId, createdAt])
+  @@index([messageType, createdAt])
+  @@index([scheduledPromptId, createdAt])
+  @@index([weeklyCheckInId, createdAt])
+  @@index([interventionId, createdAt])
 }
