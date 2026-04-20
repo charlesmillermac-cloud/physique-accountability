@@ -1,58 +1,50 @@
+import { OnboardingForm } from "@/components/onboarding/onboarding-form";
 import { PageHeader } from "@/components/layout/page-header";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { getCurrentUserSnapshot } from "@/lib/current-user";
+import { createOnboardingValues } from "@/lib/onboarding";
 
-const onboardingBlocks = [
-  {
-    title: "Athlete profile setup",
-    description:
-      "Capture identity, timezone, and coaching context so submissions and reminder windows can be interpreted correctly.",
-  },
-  {
-    title: "Required daily inputs",
-    description:
-      "Define the non-negotiable daily fields that determine whether a check-in counts as complete or incomplete.",
-  },
-  {
-    title: "Weekly review standard",
-    description:
-      "Specify the weekly reflection fields needed to create a reliable coach-style summary without ambiguous missing data.",
-  },
-  {
-    title: "Reminder escalation policy",
-    description:
-      "Choose how the system progresses from initial reminder to escalation when check-ins remain incomplete or missing.",
-  },
-] as const;
+export const dynamic = "force-dynamic";
 
-export default function OnboardingPage() {
+export default async function OnboardingPage() {
+  const currentUser = await getCurrentUserSnapshot();
+  const initialValues = createOnboardingValues({
+    name:
+      currentUser?.firstName && currentUser?.lastName
+        ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
+        : "",
+    sex: currentUser?.sex ?? "",
+    age: currentUser?.age?.toString() ?? "",
+    heightCm: currentUser?.heightCm?.toString() ?? "",
+    currentBodyweight: currentUser?.currentBodyweight?.toString() ?? "",
+    estimatedBodyFatPercent:
+      currentUser?.estimatedBodyFatPercent?.toString() ?? "",
+    trainingAgeYears: currentUser?.trainingAgeYears?.toString() ?? "",
+    goalType: currentUser?.activeGoal?.goalType ?? "",
+    priorityMuscleGroups: currentUser?.activeGoal?.priorityMuscleGroups ?? [],
+    scheduleConstraints: currentUser?.activeGoal?.scheduleConstraints ?? "",
+    equipmentAccess: currentUser?.activeGoal?.equipmentAccess ?? [],
+    calorieTarget: currentUser?.activeGoal?.calorieTarget?.toString() ?? "",
+    proteinTargetGrams:
+      currentUser?.activeGoal?.proteinTargetGrams?.toString() ?? "",
+    carbsTargetGrams: currentUser?.activeGoal?.carbsTargetGrams?.toString() ?? "",
+    fatsTargetGrams: currentUser?.activeGoal?.fatsTargetGrams?.toString() ?? "",
+    stepTarget: currentUser?.activeGoal?.stepTarget?.toString() ?? "",
+    cardioTargetMinutes:
+      currentUser?.activeGoal?.cardioTargetMinutes?.toString() ?? "",
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Setup"
         title="Onboarding"
-        badge="Foundational route"
-        description="This page is positioned for the initial athlete and program setup flow. It is intentionally a shell for now, but the structure already reflects the accountability engine’s core concerns."
+        badge={
+          currentUser?.onboardingCompletedAt ? "Update active setup" : "Initial setup"
+        }
+        description="Capture the athlete profile, define the current phase, and lock in the execution targets that the accountability engine should score against."
       />
 
-      <section className="grid gap-4 md:grid-cols-2">
-        {onboardingBlocks.map((block) => (
-          <Card key={block.title}>
-            <CardHeader>
-              <CardDescription>Planned onboarding module</CardDescription>
-              <CardTitle>{block.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-7 text-slate-600">{block.description}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+      <OnboardingForm initialValues={initialValues} />
     </div>
   );
 }

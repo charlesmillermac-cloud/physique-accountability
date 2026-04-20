@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ActiveGoalSummary } from "@/components/dashboard/active-goal-summary";
 import { PageHeader } from "@/components/layout/page-header";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Button } from "@/components/ui/button";
@@ -16,19 +17,58 @@ import {
   missingDataItems,
   summaryHighlights,
 } from "@/lib/placeholders";
+import { getCurrentUserSnapshot } from "@/lib/current-user";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const currentUser = await getCurrentUserSnapshot();
+  const athleteName = currentUser
+    ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
+    : "Athlete";
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Workspace"
         title="Dashboard"
-        badge="Placeholder data"
-        description="This starter dashboard shows the core accountability surfaces: compliance, reporting quality, missing required data, reminder cadence, and a weekly summary preview."
+        badge={currentUser?.activeGoal ? "Active goal loaded" : "Needs onboarding"}
+        description="This starter dashboard combines live onboarding context with placeholder accountability metrics so the workspace already reflects the athlete's current phase."
         actions={
           <Button asChild>
-            <Link href="/daily-check-in">Open check-in flow</Link>
+            <Link href={currentUser?.activeGoal ? "/daily-check-in" : "/onboarding"}>
+              {currentUser?.activeGoal ? "Open check-in flow" : "Start onboarding"}
+            </Link>
           </Button>
+        }
+      />
+
+      <ActiveGoalSummary
+        athleteName={athleteName}
+        profile={{
+          currentBodyweight: currentUser?.currentBodyweight?.toString() ?? null,
+          estimatedBodyFatPercent:
+            currentUser?.estimatedBodyFatPercent?.toString() ?? null,
+          trainingAgeYears: currentUser?.trainingAgeYears?.toString() ?? null,
+        }}
+        activeGoal={
+          currentUser?.activeGoal
+            ? {
+                title: currentUser.activeGoal.title,
+                goalType: currentUser.activeGoal.goalType,
+                priorityMuscleGroups:
+                  currentUser.activeGoal.priorityMuscleGroups,
+                scheduleConstraints: currentUser.activeGoal.scheduleConstraints,
+                equipmentAccess: currentUser.activeGoal.equipmentAccess,
+                calorieTarget: currentUser.activeGoal.calorieTarget,
+                proteinTargetGrams: currentUser.activeGoal.proteinTargetGrams,
+                carbsTargetGrams: currentUser.activeGoal.carbsTargetGrams,
+                fatsTargetGrams: currentUser.activeGoal.fatsTargetGrams,
+                stepTarget: currentUser.activeGoal.stepTarget,
+                cardioTargetMinutes:
+                  currentUser.activeGoal.cardioTargetMinutes,
+              }
+            : null
         }
       />
 

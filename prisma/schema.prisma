@@ -20,6 +20,42 @@ enum GoalStatus {
   ARCHIVED
 }
 
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum GoalType {
+  CUT
+  GAIN
+  RECOMP
+  CONTEST_PREP
+}
+
+enum MuscleGroup {
+  CHEST
+  BACK
+  DELTS
+  ARMS
+  QUADS
+  HAMSTRINGS
+  GLUTES
+  CALVES
+  ABS
+}
+
+enum EquipmentAccess {
+  FULL_GYM
+  BARBELL_RACK
+  DUMBBELLS
+  MACHINES
+  CABLES
+  RESISTANCE_BANDS
+  CARDIO_MACHINES
+  BODYWEIGHT_ONLY
+}
+
 enum CheckInCompletionStatus {
   PENDING
   PARTIAL
@@ -138,7 +174,14 @@ model User {
   firstName      String
   lastName       String
   timezone       String    @default("America/Denver")
+  sex            Sex?
+  age            Int?
+  heightCm       Decimal?  @db.Decimal(5, 2)
+  currentBodyweight Decimal? @db.Decimal(5, 2)
+  estimatedBodyFatPercent Decimal? @db.Decimal(5, 2)
+  trainingAgeYears Decimal? @db.Decimal(4, 2)
   status         UserStatus @default(ACTIVE)
+  onboardingCompletedAt DateTime?
   activeGoalId   String?   @unique
   activeGoal     Goal?     @relation("ActiveGoal", fields: [activeGoalId, id], references: [id, userId])
   goals          Goal[]    @relation("UserGoals")
@@ -155,6 +198,7 @@ model User {
 
   @@unique([activeGoalId, id])
   @@index([status])
+  @@index([onboardingCompletedAt])
 }
 
 model Goal {
@@ -165,6 +209,16 @@ model Goal {
   title               String
   description         String?
   status              GoalStatus @default(ACTIVE)
+  goalType            GoalType
+  priorityMuscleGroups MuscleGroup[] @default([])
+  scheduleConstraints String?
+  equipmentAccess     EquipmentAccess[] @default([])
+  calorieTarget       Int?
+  proteinTargetGrams  Int?
+  carbsTargetGrams    Int?
+  fatsTargetGrams     Int?
+  stepTarget          Int?
+  cardioTargetMinutes Int?
   startDate           DateTime  @db.Date
   targetEndDate       DateTime? @db.Date
   completedAt         DateTime?
@@ -183,6 +237,7 @@ model Goal {
   @@unique([id, userId])
   @@index([userId, status])
   @@index([userId, startDate])
+  @@index([goalType, status])
 }
 
 model DailyCheckIn {
