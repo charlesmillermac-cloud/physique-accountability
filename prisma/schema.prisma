@@ -63,6 +63,12 @@ enum CheckInCompletionStatus {
   MISSED
 }
 
+enum ScoreStatus {
+  COMPLETE
+  DEGRADED
+  INCOMPLETE
+}
+
 enum ScheduledPromptType {
   DAILY_CHECK_IN
   WEEKLY_CHECK_IN
@@ -302,36 +308,48 @@ model WeeklyCheckIn {
 }
 
 model ComplianceScore {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  goalId          String?
-  goal            Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
-  windowStartDate DateTime  @db.Date
-  windowEndDate   DateTime  @db.Date
-  score           Decimal   @db.Decimal(5, 2)
-  notes           String?
-  calculatedAt    DateTime  @default(now())
+  id                 String      @id @default(cuid())
+  userId             String
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId             String?
+  goal               Goal?       @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  windowStartDate    DateTime    @db.Date
+  windowEndDate      DateTime    @db.Date
+  score              Decimal?    @db.Decimal(5, 2)
+  confidence         Decimal?    @db.Decimal(5, 2)
+  status             ScoreStatus @default(INCOMPLETE)
+  formulaVersion     String
+  componentBreakdown Json?
+  notes              String?
+  calculatedAt       DateTime    @default(now())
 
+  @@unique([userId, goalId, windowStartDate, windowEndDate, formulaVersion])
   @@index([userId, windowStartDate])
   @@index([goalId, windowStartDate])
+  @@index([status, calculatedAt])
   @@index([calculatedAt])
 }
 
 model ReportingScore {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  goalId          String?
-  goal            Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
-  windowStartDate DateTime  @db.Date
-  windowEndDate   DateTime  @db.Date
-  score           Decimal   @db.Decimal(5, 2)
-  notes           String?
-  calculatedAt    DateTime  @default(now())
+  id                 String      @id @default(cuid())
+  userId             String
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId             String?
+  goal               Goal?       @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  windowStartDate    DateTime    @db.Date
+  windowEndDate      DateTime    @db.Date
+  score              Decimal?    @db.Decimal(5, 2)
+  confidence         Decimal?    @db.Decimal(5, 2)
+  status             ScoreStatus @default(INCOMPLETE)
+  formulaVersion     String
+  componentBreakdown Json?
+  notes              String?
+  calculatedAt       DateTime    @default(now())
 
+  @@unique([userId, goalId, windowStartDate, windowEndDate, formulaVersion])
   @@index([userId, windowStartDate])
   @@index([goalId, windowStartDate])
+  @@index([status, calculatedAt])
   @@index([calculatedAt])
 }
 

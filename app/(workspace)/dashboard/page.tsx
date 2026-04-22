@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ActiveGoalSummary } from "@/components/dashboard/active-goal-summary";
 import { LatestDailyCheckInCard } from "@/components/dashboard/latest-daily-check-in-card";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { ScoreTrendCard } from "@/components/dashboard/score-trend-card";
 import { WeeklyReviewGateCard } from "@/components/dashboard/weekly-review-gate-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,6 @@ import {
 } from "@/components/ui/card";
 import {
   dashboardCadence,
-  dashboardMetrics,
-  missingDataItems,
   summaryHighlights,
 } from "@/lib/placeholders";
 import {
@@ -26,9 +25,11 @@ import {
 } from "@/lib/daily-check-in";
 import { getCurrentUserSnapshot } from "@/lib/current-user";
 import { prisma } from "@/lib/db/prisma";
+import { syncScoreSnapshotsForUser } from "@/lib/scoring/service";
 import {
   getCurrentWeeklyReviewWeekStart,
   getWeeklyReviewGateAssessment,
+  weeklyFieldLabels,
 } from "@/lib/weekly-check-in";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +66,32 @@ export default async function DashboardPage() {
     now,
     timeZone,
   });
+  const scoreSeries =
+    currentUser?.activeGoal
+      ? await syncScoreSnapshotsForUser({
+          userId: currentUser.id,
+          goal: {
+            id: currentUser.activeGoal.id,
+            startDate: currentUser.activeGoal.startDate,
+            stepTarget: currentUser.activeGoal.stepTarget,
+            cardioTargetMinutes: currentUser.activeGoal.cardioTargetMinutes,
+          },
+          timeZone,
+          now,
+        })
+      : {
+          complianceSnapshots: [],
+          reportingSnapshots: [],
+        };
+  const latestComplianceScore = scoreSeries.complianceSnapshots[0] ?? null;
+  const latestReportingScore = scoreSeries.reportingSnapshots[0] ?? null;
+  const openDataItems = Array.from(
+    new Set([
+      ...weeklyReviewGate.missingFields.map((field) => weeklyFieldLabels[field]),
+      ...(latestComplianceScore?.missingData ?? []),
+      ...(latestReportingScore?.missingData ?? []),
+    ]),
+  );
   const athleteName = currentUser
     ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
     : "Athlete";
@@ -140,16 +167,27 @@ export default async function DashboardPage() {
 
       <WeeklyReviewGateCard gate={weeklyReviewGate} />
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        {dashboardMetrics.map((metric) => (
-          <MetricCard
-            key={metric.label}
-            label={metric.label}
-            value={metric.value}
-            suffix={metric.suffix}
-            detail={metric.detail}
-          />
-        ))}
+      <section className="grid gap-6 xl:grid-cols-[1fr_1fr_0.8fr]">
+        <ScoreTrendCard
+          title="Compliance score"
+          description="Weighted from training execution, nutrition adherence, cardio proxy adherence, sleep, and daily consistency for the latest completed scoring windows."
+          series={scoreSeries.complianceSnapshots}
+        />
+        <ScoreTrendCard
+          title="Reporting score"
+          description="Weighted from daily submission coverage, completed closeouts, weekly review completion, and submission timeliness."
+          series={scoreSeries.reportingSnapshots}
+        />
+        <MetricCard
+          label="Open scoring gaps"
+          value={String(openDataItems.length)}
+          suffix=" items"
+          detail={
+            openDataItems.length > 0
+              ? openDataItems.slice(0, 2).join(" ")
+              : "Latest score windows have enough evidence to calculate without active data-gap warnings."
+          }
+        />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -191,7 +229,9 @@ export default async function DashboardPage() {
                 Missing required data
               </h2>
               <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
-                {missingDataItems.map((item) => (
+                {(openDataItems.length > 0
+                  ? openDataItems
+                  : ["No active missing-data warnings in the latest scoring window."]).map((item) => (
                   <li key={item} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                     {item}
                   </li>
